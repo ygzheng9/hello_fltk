@@ -8,10 +8,15 @@ name = "main"
 path = "src/main.rs"
 
 [[bin]]
+name = "ex01"
+path = "src/ex01.rs"
+
+[[bin]]
 name = "cd"
 path = "src/count_down.rs"
 
 
 [dependencies]
-fltk = { version = "^1.4", features = ["fltk-bundled"], git = "https://github.com/fltk-rs/fltk-rs" }
+fltk = { version = "^1.5", features = ["fltk-bundled"], git = "https://github.com/fltk-rs/fltk-rs" }
 rodio = "0.20.1"
+chrono ="0.4"
