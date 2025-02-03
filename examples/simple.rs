@@ -1,17 +1,21 @@
-use std::{fmt::format, thread, time::Duration};
+use std::{cell::RefCell, rc::Rc, thread, time::Duration};
 
 use fltk::{
     app::{self, channel, Scheme},
     browser::HoldBrowser,
-    button::Button,
+    button::*,
     dialog::alert_default,
-    enums::{Align, CallbackTrigger, Color},
+    draw,
+    enums::{self, Align, CallbackTrigger, Color, FrameType},
     frame::Frame,
+    group::{Flex, Pack, PackType, Tabs},
     input::Input,
-    menu::Choice,
+    menu::{Choice, MenuButton},
     output::Output,
     prelude::*,
     valuator::HorSlider,
+    widget::{self, Widget},
+    widget_extends,
     window::Window,
 };
 
@@ -76,7 +80,7 @@ fn main() {
         }
     });
 
-    let mut wind = Window::new(100, 100, 400, 900, "Hello from rust");
+    let mut wind = Window::new(100, 100, 400, 1200, "Hello from rust");
 
     // frame 就是 label
     let mut frame = Frame::default()
@@ -312,8 +316,12 @@ fn main() {
         move || format!("{}, {}", surname_input.value(), name_input.value())
     };
 
+    draw_gallery(delete_button.h() + delete_button.y());
+
     wind.end();
     wind.show();
+
+    show_frame();
 
     let mut i = 1;
     but.set_callback(move |_| {
@@ -488,9 +496,8 @@ fn main() {
 
                 create_button.deactivate();
             }
-            None => {
-                // 窗口會有很多消息，這裡不需要 print！
-            }
+            // 窗口會有很多消息，這裡不需要 print！
+            None => (),
         }
     }
 }
@@ -504,3 +511,255 @@ fn get_date(input: &mut Input) -> Result<NaiveDate, chrono::ParseError> {
     input.redraw();
     date
 }
+
+fn draw_gallery(y_pos: i32) {
+    let mut tab = Tabs::default()
+        .with_size(BOOKING_WIDGET_WIDTH + 20, BOOKING_WIDGET_WIDTH * 2)
+        .with_pos(WIDGET_PADDING, y_pos + WIDGET_PADDING);
+
+    let mut grp1 = Flex::default_fill().with_label("Tab1\t\t").row();
+    let mut col = Pack::default();
+    grp1.fixed(&col, 200);
+    grp1.set_margin(10);
+    col.set_spacing(5);
+
+    let _but1 = Button::default()
+        .with_size(WIDGET_WIDTH, WIDGET_HEIGHT)
+        .with_label("Button");
+
+    // 单选框，必须要有一个 Group
+    let mut pack1: Pack = Pack::default().with_size(200, WIDGET_HEIGHT);
+    pack1.set_spacing(5);
+
+    let _but11 = RadioRoundButton::default()
+        .with_size(55, WIDGET_HEIGHT)
+        .with_label("radio1");
+    let _but12 = RadioRoundButton::default()
+        .with_size(55, WIDGET_HEIGHT)
+        .with_label("radio2");
+    let _but13 = RadioRoundButton::default()
+        .with_size(55, WIDGET_HEIGHT)
+        .with_label("radio3");
+
+    pack1.end();
+    pack1.set_type(PackType::Horizontal);
+
+    // RoundButton, CheckButton 都是 LightButton 的 subclass，主打一个 on 的状态，没有 Group 的概念
+    let _but21 = RoundButton::default()
+        .with_size(WIDGET_WIDTH, WIDGET_HEIGHT)
+        .with_label("Round1");
+
+    // todo: 把 label 显示在左边
+    let _but31 = CheckButton::default()
+        .with_size(WIDGET_WIDTH, WIDGET_HEIGHT)
+        .with_pos(WIDGET_PADDING + WIDGET_LABEL_WIDTH, 0)
+        .with_align(Align::Left)
+        .with_label("Check1");
+
+    let _but4 = LightButton::default()
+        .with_size(WIDGET_WIDTH, WIDGET_HEIGHT)
+        .with_label("Light");
+
+    // 对应 回车键
+    let _but6 = ReturnButton::default()
+        .with_size(WIDGET_WIDTH, WIDGET_HEIGHT)
+        .with_label("Return");
+
+    let _dummy1 = Frame::default();
+    col.end();
+    col.resizable(&_dummy1);
+    grp1.end();
+
+    let mut grp2 = Flex::default_fill().with_label("Tab2\t\t").row();
+    let mut col2 = Pack::default();
+    grp2.fixed(&col2, 200);
+    grp2.set_margin(10);
+
+    col2.set_spacing(10);
+
+    let mut but5 = MenuButton::default()
+        .with_size(WIDGET_WIDTH, WIDGET_HEIGHT)
+        .with_label("Menu");
+    but5.add_choice("Hello|World|From|Rust");
+
+    let mut chce = Choice::default().with_size(WIDGET_WIDTH, WIDGET_HEIGHT);
+    chce.add_choice("Hello|FLTK|From|Rust");
+
+    let _inp = Input::default().with_size(WIDGET_WIDTH, WIDGET_HEIGHT);
+    let mut out = Output::default();
+    out.set_value("output");
+
+    col2.resizable(&out);
+    col2.end();
+    grp2.end();
+
+    let mut grp3 = Flex::default_fill().with_label("Tab3\t\t").row();
+    let mut col3 = Flex::default().column();
+    grp3.fixed(&col3, 200);
+    grp3.set_margin(10);
+
+    let mut btn_custom = MyCustomButton::new(50, "Click");
+    btn_custom.set_color(enums::Color::Cyan);
+
+    let mut out1 = Output::default();
+    out1.set_value(&format!("{}", btn_custom.num_clicks()));
+
+    // btn.set_callback(move |_| {
+    //     println!("Clicked");
+
+    //     // todo: 如何把 参数 转成 MyCustomButton 类型
+    //     // out1.set_value(&format!("{}", b.num_clicks()));
+    // });
+
+    col3.end();
+    grp3.end();
+
+    tab.end();
+    tab.auto_layout();
+
+    col3.handle(move |_, ev| match ev {
+        enums::Event::Push => {
+            out1.set_value(&format!("Got {}", btn_custom.num_clicks()));
+            true
+        }
+        _ => false,
+    });
+}
+
+// 自定义的 widget，不响应 event
+struct MyFrame {
+    #[allow(dead_code)]
+    f: Frame,
+}
+
+impl MyFrame {
+    pub fn new(idx: usize) -> MyFrame {
+        let mut f = Frame::default();
+        // Normally you would use the FrameType enum, for example:
+        // some_widget.set_frame(FrameType::DownBox);
+        f.set_frame(FrameType::by_index(idx));
+        f.set_color(Color::from_u32(0x7FFFD4));
+        let f_name = format!("{:?}", f.frame());
+        f.set_label(&f_name);
+        f.set_label_size(12);
+        Self { f }
+    }
+}
+
+fn show_frame() {
+    let mut win = Window::default()
+        .with_size(1000, 800)
+        .with_label("Frames")
+        .center_screen();
+
+    let mut col = Flex::default_fill().column();
+    col.set_margin(20);
+
+    let mut row = Flex::default();
+    col.fixed(&row, 75);
+    for i in 0..8 {
+        let _ = MyFrame::new(i);
+    }
+    row.end();
+    row.set_pad(10);
+
+    let mut row = Flex::default();
+    col.fixed(&row, 75);
+    for i in 8..17 {
+        let _ = MyFrame::new(i);
+    }
+    row.end();
+    row.set_pad(10);
+
+    let mut row = Flex::default();
+    col.fixed(&row, 75);
+    for i in 17..26 {
+        let _ = MyFrame::new(i);
+    }
+    row.end();
+    row.set_pad(10);
+
+    let mut row = Flex::default();
+    col.fixed(&row, 75);
+    for i in 26..35 {
+        let _ = MyFrame::new(i);
+    }
+    row.end();
+    row.set_pad(10);
+
+    let mut row = Flex::default();
+    col.fixed(&row, 75);
+    for i in 35..44 {
+        let _ = MyFrame::new(i);
+    }
+    row.end();
+    row.set_pad(10);
+
+    let mut row = Flex::default();
+    col.fixed(&row, 75);
+    for i in 44..53 {
+        let _ = MyFrame::new(i);
+    }
+    row.end();
+    row.set_pad(10);
+
+    col.end();
+    col.set_pad(30);
+
+    win.end();
+    win.show();
+    win.set_color(Color::White);
+}
+
+struct MyCustomButton {
+    inner: Widget,
+    num_clicks: Rc<RefCell<i32>>,
+}
+
+impl MyCustomButton {
+    // our constructor
+    pub fn new(radius: i32, label: &str) -> Self {
+        let mut inner = Widget::default()
+            .with_size(radius * 2, radius * 2)
+            .with_label(label)
+            .center_of_parent();
+        inner.set_frame(enums::FrameType::OFlatBox);
+
+        inner.draw(|i| {
+            // we need a draw implementation
+            draw::draw_box(i.frame(), i.x(), i.y(), i.w(), i.h(), i.color());
+            draw::set_draw_color(enums::Color::Black); // for the text
+            draw::set_font(enums::Font::Helvetica, app::font_size());
+            draw::draw_text2(&i.label(), i.x(), i.y(), i.w(), i.h(), i.align());
+        });
+
+        let num_clicks = 0;
+        let num_clicks = Rc::from(RefCell::from(num_clicks));
+
+        inner.handle({
+            let clicks = num_clicks.clone();
+
+            move |i, ev| match ev {
+                enums::Event::Push => {
+                    *clicks.borrow_mut() += 1; // increment num_clicks
+
+                    i.set_label(&format!("Clicked: {}", *clicks.borrow()));
+
+                    i.do_callback(); // do the callback which we'll set using set_callback().
+                    true
+                }
+                _ => false,
+            }
+        });
+
+        Self { inner, num_clicks }
+    }
+
+    // get the times our button was clicked
+    pub fn num_clicks(&self) -> i32 {
+        *self.num_clicks.borrow()
+    }
+}
+
+// Extend widget::Widget via the member `inner` and add other initializers and constructors
+widget_extends!(MyCustomButton, widget::Widget, inner);
